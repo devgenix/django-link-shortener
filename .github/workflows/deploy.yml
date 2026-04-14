@@ -31,5 +31,5 @@ jobs:
               git pull origin main
             fi
             
-            # Build and restart
-            docker compose up -d --build
+            # Build and restart using standalone docker-compose
+            docker-compose up -d --build
