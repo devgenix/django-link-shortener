@@ -1,0 +1,35 @@
+name: Build and Deploy on EC2
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Install Docker if not present
+            if ! [ -x "$(command -v docker)" ]; then
+              curl -fsSL https://get.docker.com -o get-docker.sh
+              sudo sh get-docker.sh
+              sudo usermod -aG docker $USER
+            fi
+            
+            # Navigate to project or clone
+            if [ ! -d "django-link-shortener" ]; then
+              git clone https://github.com/devgenix/django-link-shortener.git
+              cd django-link-shortener
+            else
+              cd django-link-shortener
+              git pull origin main
+            fi
+            
+            # Build and restart
+            docker compose up -d --build
