@@ -78,10 +78,19 @@ jobs:
             # Login to ECR
             aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
             
-            # Pull and restart
+            # Pull latest image
             docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
             
-            # Update docker-compose.yml to use the ECR image
+            # Update local docker-compose.yml to use the ECR image instead of local build
+            # This ensures we use the remote image we just pushed
             sed -i "s|build: .|image: $ECR_REGISTRY/$ECR_REPOSITORY:latest|" ~/docker-compose.yml
             
-            docker-compose up -d
+            # Use 'docker compose' (V2) or 'docker-compose' (V1)
+            # We add a cleanup step to resolve the 'ContainerConfig' error seen in V1
+            if command -v docker-compose &> /dev/null; then
+              docker-compose down || true
+              docker-compose up -d
+            else
+              docker compose down || true
+              docker compose up -d
+            fi
