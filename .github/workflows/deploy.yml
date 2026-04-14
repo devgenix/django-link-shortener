@@ -12,6 +12,7 @@ permissions:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: django-link-shortener
+  ECR_REGISTRY: 727646501048.dkr.ecr.us-east-1.amazonaws.com
   EC2_HOST: 3.229.113.216
   EC2_USERNAME: ubuntu
 
@@ -34,24 +35,53 @@ jobs:
 
       - name: Build, tag, and push image to Amazon ECR
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker build -t $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG -t $REGISTRY/$ECR_REPOSITORY:latest .
+          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push $REGISTRY/$ECR_REPOSITORY:latest
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to EC2
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Copy docker-compose.yml to EC2
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ env.EC2_HOST }}
+          username: ${{ env.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml"
+          target: "~/"
+
+      - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@master
         with:
           host: ${{ env.EC2_HOST }}
           username: ${{ env.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          envs: ECR_REGISTRY,ECR_REPOSITORY,AWS_REGION
           script: |
-            aws ecr get-login-password --region ${{ env.AWS_REGION }} | docker login --username AWS --password-stdin 727646501048.dkr.ecr.us-east-1.amazonaws.com
-            docker pull 727646501048.dkr.ecr.us-east-1.amazonaws.com/$ECR_REPOSITORY:latest
-            docker-compose up -d --build
+            # Install AWS CLI if not present
+            if ! command -v aws &> /dev/null; then
+              sudo apt-get update && sudo apt-get install -y unzip
+              curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+              unzip -o awscliv2.zip
+              sudo ./aws/install --update
+              rm -rf aws awscliv2.zip
+            fi
+
+            # Login to ECR
+            aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+            
+            # Pull and restart
+            docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+            
+            # Update docker-compose.yml to use the ECR image
+            sed -i "s|build: .|image: $ECR_REGISTRY/$ECR_REPOSITORY:latest|" ~/docker-compose.yml
+            
+            docker-compose up -d
