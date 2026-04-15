@@ -3,7 +3,10 @@ version: '3.8'
 services:
   web:
     image: 727646501048.dkr.ecr.us-east-1.amazonaws.com/django-link-shortener:latest
-    command: gunicorn --bind 0.0.0.0:8000 core.wsgi:application
+    command: >
+      sh -c "mkdir -p /app/data && 
+             python manage.py migrate --noinput && 
+             gunicorn --bind 0.0.0.0:8000 core.wsgi:application"
     ports:
       - "80:8000"
     volumes:
