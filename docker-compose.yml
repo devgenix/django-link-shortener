@@ -12,8 +12,9 @@ services:
     volumes:
       - django_data:/app/data
     environment:
-      - DEBUG=False
+      - DEBUG=True
       - ALLOWED_HOSTS=*
+      - SECRET_KEY=django-insecure-prod-key-123
 
 volumes:
   django_data:
