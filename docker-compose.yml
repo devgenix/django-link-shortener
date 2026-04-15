@@ -6,14 +6,15 @@ services:
     command: >
       sh -c "mkdir -p /app/data && 
              python manage.py migrate --noinput && 
+             python manage.py collectstatic --noinput &&
              gunicorn --bind 0.0.0.0:8000 core.wsgi:application"
     ports:
       - "80:8000"
     volumes:
       - django_data:/app/data
     environment:
-      - DEBUG=True
-      - ALLOWED_HOSTS=*
+      - DEBUG=False
+      - ALLOWED_HOSTS=3.229.113.216,localhost
       - SECRET_KEY=django-insecure-prod-key-123
 
 volumes:
