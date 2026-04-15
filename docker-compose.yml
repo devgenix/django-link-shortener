@@ -6,6 +6,11 @@ services:
     command: gunicorn --bind 0.0.0.0:8000 core.wsgi:application
     ports:
       - "80:8000"
+    volumes:
+      - django_data:/app/data
     environment:
-      - DEBUG=0
+      - DEBUG=False
       - ALLOWED_HOSTS=*
+
+volumes:
+  django_data:
