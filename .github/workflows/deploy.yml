@@ -13,7 +13,6 @@ env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: django-link-shortener
   ECR_REGISTRY: 727646501048.dkr.ecr.us-east-1.amazonaws.com
-  EC2_HOST: 3.229.113.216
   EC2_USERNAME: ubuntu
 
 jobs:
@@ -52,7 +51,7 @@ jobs:
       - name: Copy docker-compose.yml to EC2
         uses: appleboy/scp-action@master
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}
           username: ${{ env.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.yml"
@@ -61,7 +60,7 @@ jobs:
       - name: Deploy to EC2 via SSH
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ env.EC2_HOST }}
+          host: ${{ secrets.EC2_HOST }}
           username: ${{ env.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: ECR_REGISTRY,ECR_REPOSITORY,AWS_REGION
@@ -81,12 +80,15 @@ jobs:
             # Pull latest image
             docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
             
-            # Update local docker-compose.yml to use the ECR image instead of local build
-            # This ensures we use the remote image we just pushed
-            sed -i "s|build: .|image: $ECR_REGISTRY/$ECR_REPOSITORY:latest|" ~/docker-compose.yml
+            # Update local docker-compose.yml to use the ECR image and set correct IP
+            sed -i "s|image: .*|image: $ECR_REGISTRY/$ECR_REPOSITORY:latest|" ~/docker-compose.yml
+            sed -i "s|ALLOWED_HOSTS=.*|ALLOWED_HOSTS=${{ secrets.EC2_HOST }},localhost|" ~/docker-compose.yml
             
-            # Use 'docker compose' (V2) or 'docker-compose' (V1)
-            # We add a cleanup step to resolve the 'ContainerConfig' error seen in V1
+            # Ensure data directory exists with correct permissions
+            mkdir -p ~/data
+            chmod 777 ~/data
+
+            # Deploy
             if command -v docker-compose &> /dev/null; then
               docker-compose down || true
               docker-compose up -d
